@@ -1,15 +1,20 @@
 import re
+import json
 import datetime
 from numpy import float64
+import pandas as pd
 import influxdb_client
 from dask import dataframe as df1
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 def process_file(csv_file):
+    print("Processing file:", csv_file)
     # stem : returns the file name of csv_file without its extension
-    file_name = csv_file.stem
+    # file_name = csv_file.stem
+    file_name = csv_file.split(".")[0]
     dask_df = df1.read_csv(str(csv_file))
+    dask_df = dask_df.persist()
 
     # extract date from file name
     date_str = re.search(r"\d{8}", file_name).group()
@@ -41,9 +46,19 @@ def process_file(csv_file):
                                   'R8 (MOhm)': float64, 'R9 (MOhm)': float64, 'R10 (MOhm)': float64,
                                   'R11 (MOhm)': float64, 'R12 (MOhm)': float64, 'R13 (MOhm)': float64,
                                   'R14 (MOhm)': float64})
-    print(filter_df.head(10))
 
-    return filter_df
+    # Convert Dask DataFrame to Pandas DataFrame
+    pandas_df = filter_df.compute()
+
+    print(pandas_df.head(10))
+
+    # Convert DataFrame to a list of dictionaries
+    data = pandas_df.to_dict(orient='records')
+
+    # Convert the data to JSON string
+    json_data = json.dumps(data)
+
+    return json_data
 
 
 def send_file_influxdb(processed_file):
