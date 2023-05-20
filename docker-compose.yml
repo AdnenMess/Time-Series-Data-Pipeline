@@ -56,11 +56,12 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth'
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- pandas dask}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- pandas dask influxdb-client}
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
+    - ./Data_input:/usr/local/airflow/data_input
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -83,7 +84,7 @@ services:
       interval: 5s
       retries: 5
     restart: on-failure
-  
+
   adminer:
     image: adminer
     restart: on-failure
@@ -284,7 +285,7 @@ services:
       - DOCKER_INFLUXDB_INIT_USERNAME=my-user
       - DOCKER_INFLUXDB_INIT_PASSWORD=my-password
       - DOCKER_INFLUXDB_INIT_ORG=my-org
-      - DOCKER_INFLUXDB_INIT_BUCKET=air-quality
+      - DOCKER_INFLUXDB_INIT_BUCKET=gas-quality
 
   grafana:
     image: grafana/grafana:latest
@@ -301,7 +302,7 @@ services:
       - INFLUXDB_PASSWORD=user12345
     volumes:
       - ./gfdata:/var/lib/grafana
-  
+
   portainer:
     image: portainer/portainer:latest
     container_name: portainer
