@@ -2,6 +2,7 @@ from pathlib import Path
 import psycopg2
 from datetime import datetime, timedelta
 from airflow import DAG
+from transform import process_file
 from airflow.hooks.base_hook import BaseHook
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.dummy_operator import DummyOperator
@@ -54,11 +55,6 @@ def check_if_file_exists(file_path, **context):
         return False  # File does not exist, execute process_file_task
 
 
-def process_file(file_path, **context):
-    # Add your file processing logic here
-    print("Processing file:", file_path)
-
-
 with DAG(
     dag_id='automation_process',
     schedule_interval=None,
@@ -86,7 +82,7 @@ with DAG(
         process_file_task = PythonOperator(
             task_id='process_file_task_' + task_id,
             python_callable=process_file,
-            op_kwargs={'file_path': str(file_path)},
+            op_kwargs={'csv_file': str(file_path)},  # Pass the file_path as 'csv_file' argument
             provide_context=True,
         )
 
