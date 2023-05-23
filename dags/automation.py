@@ -2,7 +2,7 @@ from pathlib import Path
 import psycopg2
 from datetime import datetime, timedelta
 from airflow import DAG
-from transform import process_file
+from transform import process_file, send_file_influxdb
 from airflow.hooks.base_hook import BaseHook
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.dummy_operator import DummyOperator
@@ -59,7 +59,7 @@ with DAG(
     dag_id='automation_process',
     schedule_interval=None,
     start_date=datetime(2023, 5, 18),
-    dagrun_timeout=timedelta(minutes=5),
+    dagrun_timeout=timedelta(minutes=10),
 ) as dag:
     file_sensor_task = PythonOperator(
         task_id='file_sensor_task',
@@ -86,6 +86,13 @@ with DAG(
             provide_context=True,
         )
 
+        send_file_influxdb_task = PythonOperator(
+            task_id='send_file_influxdb_task_' + task_id,
+            python_callable=send_file_influxdb,
+            op_kwargs={'processed_file': process_file_task.output},  # Pass the output of process_file_task
+            provide_context=True,
+        )
+
         dummy_task = DummyOperator(
             task_id='dummy_task_' + task_id
         )
@@ -99,3 +106,4 @@ with DAG(
 
         file_sensor_task >> check_existence_task >> branching_task
         branching_task >> [process_file_task, dummy_task]
+        process_file_task >> send_file_influxdb_task

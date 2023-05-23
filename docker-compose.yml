@@ -84,12 +84,16 @@ services:
       interval: 5s
       retries: 5
     restart: on-failure
+    networks:
+      - airflow-net
 
   adminer:
     image: adminer
     restart: on-failure
     ports:
       - 8081:8080
+    networks:
+      - airflow-net
 
   redis:
     image: redis:latest
@@ -101,6 +105,8 @@ services:
       timeout: 30s
       retries: 50
     restart: on-failure
+    networks:
+      - airflow-net
 
   airflow-webserver:
     <<: *airflow-common
@@ -117,6 +123,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-net
 
   airflow-scheduler:
     <<: *airflow-common
@@ -131,6 +139,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-net
 
   airflow-worker:
     <<: *airflow-common
@@ -152,6 +162,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-net
 
   airflow-triggerer:
     <<: *airflow-common
@@ -166,6 +178,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-net
 
   airflow-init:
     <<: *airflow-common
@@ -243,6 +257,10 @@ services:
     user: "0:0"
     volumes:
       - .:/sources
+    depends_on:
+      - influxdb
+    networks:
+      - airflow-net
 
   airflow-cli:
     <<: *airflow-common
@@ -256,6 +274,8 @@ services:
       - bash
       - -c
       - airflow
+    networks:
+      - airflow-net
 
   flower:
     <<: *airflow-common
@@ -272,9 +292,11 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    networks:
+      - airflow-net
 
   influxdb:
-    image: influxdb:2.6
+    image: influxdb:2.7
     ports:
       - '8086:8086'
     volumes:
@@ -286,6 +308,8 @@ services:
       - DOCKER_INFLUXDB_INIT_PASSWORD=my-password
       - DOCKER_INFLUXDB_INIT_ORG=my-org
       - DOCKER_INFLUXDB_INIT_BUCKET=gas-quality
+    networks:
+      - airflow-net
 
   grafana:
     image: grafana/grafana:latest
@@ -302,6 +326,8 @@ services:
       - INFLUXDB_PASSWORD=user12345
     volumes:
       - ./gfdata:/var/lib/grafana
+    networks:
+      - airflow-net
 
   portainer:
     image: portainer/portainer:latest
@@ -313,6 +339,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
+    networks:
+      - airflow-net
 volumes:
   postgres-db-volume:
   portainer_data:
+
+networks:
+  airflow-net:
+    driver: bridge

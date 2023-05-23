@@ -1,5 +1,4 @@
 import re
-import json
 import datetime
 from numpy import float64
 import pandas as pd
@@ -50,28 +49,30 @@ def process_file(csv_file):
     # Convert Dask DataFrame to Pandas DataFrame
     pandas_df = filter_df.compute()
 
-    print(pandas_df.head(10))
+    print(pandas_df.head(5))
 
-    # Convert DataFrame to a list of dictionaries
-    data = pandas_df.to_dict(orient='records')
+    # Serialize the DataFrame as an Apache Arrow binary file
+    pandas_df.to_parquet(f'{file_name}.parquet')
 
-    # Convert the data to JSON string
-    json_data = json.dumps(data)
-
-    return json_data
+    return f'{file_name}.parquet'
 
 
 def send_file_influxdb(processed_file):
-    token_influxdb = "W3s0WbPRLcY1HhKJvy4mPDEKQb60grLELOd5GCgDvFwkasKc5ALBtjyCPfrpuv3wInYQtRidXc4uOroWWM1DEw=="
-    client = influxdb_client.InfluxDBClient(url='http://localhost:8086', token=token_influxdb, org='my-org')
+    # Deserialize the DataFrame from the Apache Arrow binary file
+    df = pd.read_parquet(processed_file)
+    print("Index of DataFrame: ", df.index)  # Print the index of the DataFrame
 
     tag_columns = ['Temperature']
 
-    # write the data into measurement
-    write_api = client.write_api(write_options=SYNCHRONOUS, timeout=1000)
+    token_influxdb = 'J536G5RnRvJCSxLkJuEzRt-EhAAcukollYEOg74wz6y--XIucAqYC1jfpX_Jugl6yeB8FYctwVjefaDdpQE1LQ=='
+    client = influxdb_client.InfluxDBClient(url='http://influxdb:8086', token=token_influxdb, org='my-org')
 
-    message = write_api.write(bucket='gas-quality', org='my-org', record=processed_file.compute(),
+    # write the data into measurement
+    write_api = client.write_api(write_options=SYNCHRONOUS, timeout=50000)
+
+    message = write_api.write(bucket='gas-quality', org='my-org', record=df,
                               data_frame_measurement_name='gas', data_frame_tag_columns=tag_columns)
-    print(message)
+    print("Message: ", message)
 
     write_api.flush()
+    return True
