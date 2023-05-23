@@ -58,7 +58,7 @@ def check_if_file_exists(file_path, **context):
 with DAG(
     dag_id='automation_process',
     schedule_interval=None,
-    start_date=datetime(2023, 5, 18),
+    start_date=datetime(2019, 4, 4),
     dagrun_timeout=timedelta(minutes=10),
 ) as dag:
     file_sensor_task = PythonOperator(

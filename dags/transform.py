@@ -1,3 +1,4 @@
+import os
 import re
 import datetime
 from numpy import float64
@@ -68,11 +69,15 @@ def send_file_influxdb(processed_file):
     client = influxdb_client.InfluxDBClient(url='http://influxdb:8086', token=token_influxdb, org='my-org')
 
     # write the data into measurement
-    write_api = client.write_api(write_options=SYNCHRONOUS, timeout=50000)
+    write_api = client.write_api(write_options=SYNCHRONOUS, timeout=1000)
 
     message = write_api.write(bucket='gas-quality', org='my-org', record=df,
                               data_frame_measurement_name='gas', data_frame_tag_columns=tag_columns)
     print("Message: ", message)
 
     write_api.flush()
+
+    # Delete the intermediate parquet file
+    os.remove(processed_file)
+
     return True
