@@ -56,7 +56,7 @@ def check_if_file_exists(file_path, **context):
 
 
 with DAG(
-    dag_id='automation_process',
+    dag_id='ETL-Gas',
     schedule_interval=None,
     start_date=datetime(2019, 4, 4),
     dagrun_timeout=timedelta(minutes=10),
