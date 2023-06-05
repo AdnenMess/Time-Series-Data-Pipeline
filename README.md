@@ -1,12 +1,22 @@
 
-# Yelp Document Streaming: A Data Pipeline Project
+# Time Series Data Pipeline and Visualization for Gas Sensor Data Set
 
 # Introduction & Goals
 
->>This project will show how to stream, process, and visualize JSON documents from the Yelp dataset using various tools 
-and technologies. We can see how the Yelp data can be integrated and enriched by merging the data coming from different 
-files into a single database. This way, we can avoid the complexity and inefficiency of doing a JSON merge on voluminous
-files, which can be very difficult and time-consuming
+> This project demonstrates how to build a data pipeline for the Gas sensor array temperature modulation Data Set. 
+The data set consists of measurements of 14 temperature-modulated metal oxide semiconductor (MOX) gas sensors exposed 
+to dynamic mixtures of carbon monoxide (CO) and humid synthetic air. 
+By analyzing the time series data from the sensors, researchers can develop models and algorithms to detect and estimate 
+the gas (CO) concentration based on the sensor responses.
+>
+> To achieve this, the project uses Airflow, InfluxDB and Grafana as the main tools and technologies. 
+Airflow is used to automate the extraction, transformation and loading **(ETL)** of the CSV files containing the sensor data. 
+InfluxDB is used to store the processed data as time series in an efficient way. 
+Grafana is used to visualize the data and create interactive dashboards that show the sensor signals.
+>
+> The project demonstrates how to handle, process and visualize dynamic data using various tools and technologies. 
+It also shows how to integrate and enrich the data by combining different files into a single database.
+
 
 # Contents
 
@@ -31,152 +41,194 @@ files, which can be very difficult and time-consuming
 
 
 # The Data Set
-- The dataset is a subset of Yelp’s businesses, reviews, user, checkin and tip data that can be used for various 
-research projects
-- Data Source : https://www.yelp.com/dataset/download 
-- Documentation of Yelp dataset : https://www.yelp.com/dataset/documentation/main
+- The dataset is presented in 13 CSV files, where each file corresponds to a different measurement day. The filenames indicate the timestamp (yyyymmdd_HHMMSS) of the start of the measurements.
+Each file includes the acquired time series, presented in 20 columns: Time (s), CO concentration (ppm), Humidity (%r.h.), Temperature (ÂºC), Flow rate (mL/min), Heater voltage (V), and the resistance of the 14 gas sensors: R1 (MOhm),R2 (MOhm),R3 (MOhm),R4 (MOhm),R5 (MOhm),R6 (MOhm),R7 (MOhm),R8 (MOhm),R9 (MOhm),R10 (MOhm),R11 (MOhm),R12 (MOhm),R13 (MOhm),R14 (MOhm)
+Resistance values R1-R7 correspond to FIGARO TGS 3870 A-04 sensors, whereas R8-R14 correspond to FIS SB-500-12 units.
+The time series are sampled at 3.5 Hz.
+- Data Source : https://archive.ics.uci.edu/ml/datasets/Gas+sensor+array+temperature+modulation
+- Here an overview of the dataset - 10 Columns:
+![dataset](/photo/dataset.png)
 
-This documentation explain the structure of business.json, review.json, user.json, checkin.json and tip.json
-
-Here the content of a **business** document
-
-![business](/images/business.png)
-
-The content of a **review** document
-
-![review](/images/review.png)
-
-The content of a **user** document
-
-![user](/images/user.png)
-
-The content of a **checkin** document
-
-![checkin](/images/checkin.png)
-
-The content of a **tip** document
-
-![tip](/images/tip.png)
 
 # Used Tools
-## Connect
-- FastAPI to validate the schema of JSON documents and send them to a Kafka producer
-## Buffer
-- Kafka producer to distributes the JSON documents to PySpark
-## Processing
-- PySpark to processes and stores the JSON documents in MongoDB database
-## Storage
-- MongoDB database that persists the JSON documents based on the keys (user_id or business_id)
-## Connect to Storage
-- FastAPI to retrieves data from MongoDB and sends it to a Streamlit application
+## Extract
+- I used Python ingestion code in which I used the dask library to fast read large csv files
+## Transform
+- I used the same Python ingestion code with the dask library to handle and process the datasets
+## Load
+- I used Influxdb to store the sensor datasets
+## Automation
+- I used Apache Airflow to schedule, control tasks and do the ETL (Extract, Transform, Load) work
 ## Visualization
-- Streamlit application that visualizes the Yelp data
+- I used the Grafana platform to visualize all the data from the gas sensors
 
 # Setup
-Since we have all services dockerized, we need to follow these steps to properly configure all 
+Since I have all services dockerized, please follow these steps to properly configure all 
 the images and then deploy the containers:
-- Clone the git repository, create a 'dataset' directory and put all the Yelp datasets in there,
-that way you don't need to change anything in the code
-- As we have a GUI and two APIs, all built from python code, we need to build their docker images
-first. To do this :
-  1.  In the terminal, go to `API-Kafka-Ingest` directory  and type: `docker build -t api-kafka-ingest .`
-  2.  In the terminal, go to `API-Streamlit-output` directory  and type: `docker build -t api-streamlit-output .`
-  3.  In the terminal, go to `Streamlit` directory  and type: `docker build -t streamlit .`
-- We are now ready to build containers from our docker-compose file, to do this go to the main project directory
+- Clone the git repository, create a `Data_input` directory and put the Gas sensor csv files in there,
+this way the code will remain unchanged
+- Before diving into the deployment of docker-compose, I would like to clarify these points about docker-compose configuration: 
+
+  1.  The `Data_input` folder needs to be mounted in the Airflow volumes so that it can work with the files there. 
+      To do this, add this line to `volumes` in the docker-compose: `./Data_input:/usr/local/airflow/data_input`
+  2.  To work with python libraries that need to be imported, Airflow allows us to import these libraries from 
+      docker-compose into `environment`.
+      To do this, add the Pandas, Dask and Influxdb-Client libraries to 
+      `_PIP_ADDITIONAL_REQUIREMENTS`: `${_PIP_ADDITIONAL_REQUIREMENTS:- pandas dask influxdb-client}`
+
+- As my folder is mounted and my extra libraries are added, all I need now is to start building docker container from my docker-compose. 
+To do this go to the main project directory
 and type: `docker-compose up -d`
-- Finally, create the Kafka topics **Yelp-topic** and **spark-output** with **3 partitions** and a **replication 
-factor of 1** and the **Kafka broker** runs on **localhost:9092**. To do this : 
-  1.  In the terminal, type `docker ps` to see running container
-  2.  Copy the name of the kafka container, in my case it was `yelp-kafka-1`
-  3.  Type `docker exec -it yelp-kafka-1 bash`
-  4.  Type `cd opt/bitnami/kafka/bin/`
-  5.  We can create now Topics, to do that, type : 
-```shell
-./kafka-topics.sh --create --topic Yelp-topic --partitions 3 --replication-factor 1 --bootstrap-server localhost:9092
-```
-```shell
-./kafka-topics.sh --create --topic spark-output --bootstrap-server localhost:9092
-```
+- Go to `localhost:8081` on the web browser and connect to postgresql using this configuration: 
+`System: PostgreSQL`, `Server: postgres:5432` , `Username: airflow`, `Password: airflow`
+
+![server](/photo/server.png)
+
+- Create a database called `GasData` and then a table called `gas_name` with a column called `file_name` of type `text`.
+This table `gas_name` should contain the names of the csv files already processed
+
+![table](/photo/table.png)
+
+- Create the `fs_default` connection in Apache Airflow used to access files on the file system. 
+To do this, go to `localhost:8080` on the web browser, go to the `Admin` tab in the Airflow UI, 
+click on the `Connections` tab, click on the Create Connection button. In the Connection Name field, 
+enter `fs_default`. In the Connection Type field, select `File (path)`. 
+In Extra, enter `{"path": "/usr/local/airflow/data_input"}`. Click the Save button
+
+![fs_default](/photo/fs_default.png)
+
+- Finally, I need to configure InfluxDB to store the dataset. To do that : 
+  1. Go to `localhost:8086` on the web browser and connect to InfluxDB using this configuration:`Username: my-user`, `Password: my-password`
+  2. I need to create a `Bucket` called "gas quality"
+  3. I need to generate an `API token` to use in my **transform** code
+
+![Bucket](/photo/Bucket.png)
+
+![token](/photo/token.png)
 
 # Pipelines
 
-![pipline](/images/Yelp.jpg)
+![pipline](/photo/pipeline.jpg)
 
 The upcoming posts will consist of writing about:
-+ Pre-processing and cleaning of data from the Yelp dataset
-+ The flow of the streaming process which includes the ingestion of data through an API, 
-the processing and storage of the data
-+ Visualisation where we have an interface in the browser where the end user can use "business_id" or 
-"user_id" to query the data to be used
++ Load data from csv files and see whether they have already been processed
++ Data processing
++ Storing data in the influxdb time series database
++ Visualisation of all gas sensors using a Grafana dashboard
+
+## Load Data
+
+I chose to design the pipeline as follows:
+
+1- I first retrieve all the csv file names from the source directory. 
+
+2- I check whether the csv file names already exist in the metadata base.
+If the file name does not exist in the database, 
+it will be inserted into the database and the file will be sent for processing.
+
+On the other hand, if the file name already exists in my metadata base, 
+then the file will not be reprocessed another time, the processing phase will be skipped, and a dummy task will run.
+
++ Here is an example where the name of the csv file already exists in my metadata base:
+![skipped](/photo/skipped.png)
+As you can see,when the name of the csv file already exists in the metadata base,processing is skipped
+  and a dummy task is run.
+
+
++ Here is an example where the name of the csv file does not exist in my metadata base:
+![process](/photo/process.png)
+
+As you can see, when the name of the csv file does not exist in the metadata base, the file will be processed.
 
 ## Data Preprocessing
 
-In the original Yelp dataset:
-+ business.json contains an "attributes" sub-document which contains a string representation of a JSON object. 
-We will transform the string representation of a JSON object into a JSON object
+Initially, all datasets were given a 25-hour recording over a period of 13 working days.
+It is not clear from the documentation why this is a 25-hour record rather than a 24-hour record.
 
-The content of the commercial document before transformation :
-![business_before](/images/business_before_preprocessing.png)
+Therefore, to simplify the process, I will only take 24 hours per day (24 hours = 86400 seconds),
+as the data is recorded in seconds.
 
-The content of the commercial document after transformation :
-![business_after](/images/business.png)
+The main goal of the process is to transform the time in the dataset,
+which is originally in seconds, into the timestamp format used by influxdb `YYYY-MM-DDTHH:MM:SS.sssZ`. 
 
-+ checkin.json contains the "date" attribute in which is the whole list of check-in dates.
-We assume that we do not need this list of check-in dates and will replace it with its length
+To do this, I extracted the day of recording from the name of the csv files (example:
+if the name of the csv file is 20161007_210049.csv, the day of recording is 10/07/2016).
+I concatenated the date with the time in the dataset after converting the seconds to HH:MM:SS.
+The result is a timestamp 'YYYY-MM-DD HH:MM: SS.sss'
+and the last step was to convert this timestamp into the format used by influxdb `YYY-MM-DDTHH:MM:SS.sssZ`.
 
+## Storing data in influxDB
 
-+ user.json contains the attribute "friends" which contains the complete list of friends (in terms of IDs) of this user.
-We assume that we do not need this list of friends and replace it with the number of friends he has
+The big challenge with airflow is sending data between tasks.
+I have avoided
+using the metadatabase to send the dataset from the processing task to the storage task
+because the metadatabase is designed to store crucial information such as the configuration of the Airflow environment,
+roles and permissions, etc ...
+In addition, this database is limited in terms of size.
 
-Detail of transforming : [Transforming](Client/Transforming.py)
+As I have designed the ETL pipeline
+to work with several csv files at the same time and Airflow alone requires a lot of RAM,
+saving the result of the processing task in an in-memory dataframe is a bad idea
+because this way I will need a huge amount of RAM.
 
-## Data Stream
+I have chosen
+to save the result of the processing task in an intermediate parquet file which I will delete as soon
+as influxDB has received all the data from this parquet file.
 
-![transformation](/images/transformation.png)
+Finally, I need to go into InfluxDB, Buckets and make sure the data is there.
 
-+ We created a json collection that can be imported into postman to test the schema and the data sent to the API. 
-
-Detail of json collection : [IngestAPI-TEST](API-Kafka-Ingest/Postman/IngestAPI-Test.postman_collection.json)
-
-+ We created an API client that reads the json files and sends them to the API line by line (document by document)
-
-Detail of the API client : [API-client](Client/api-client.py)
-
-## Processing Data Stream
-
-![processing](images/ingestion.png)
-
-+ We created a fastAPI to ingest data from the client API and send it to a Kafka producer
-
-Detail of the FastAPI : [API-Kafka](API-Kafka-Ingest/app/main.py)
-
-+ We create a python script in pyspark that consumes the data from the kafka producer. In the same script, 
-we set up a connection to mongodb for reading and writing
-
-
-+ In pyspark, we convert the time from a string to GMT, and we have renamed some of the column names because
-in the original files, some columns have the same name with different content
-
-
-+ The main objective of the processing is to retrieve the line (document) from Kafka and see if it matches the mongodb 
-database using the key "business-id" or "user-id".
-So, if the key matches, we will join the upcoming data with the mongodb database otherwise we will simply insert
-this line in mongodb
-
-Detail of the Pyspark script : [Pyspark](ApacheSpark/02-streaming-kafka-src-dst-mongodb.ipynb)
-
-+ For security reasons, we created a FastAPI to get all the necessary data from mongodb
-
-Detail of the FastAPI : [API-Streamlit](API-Streamlit-output/app/main_output.py)
+![influxdb-result](/photo/Influxdb-result.png)
 
 ## Visualizations
 
-![visualization](images/visualization.png)
+In this section, I'm going to explain how I created a dashboard using grafana.
 
-+ We have created a streamlit application that retrieves data from the FastAPI connected to mongodb and displays 
-some columns in a table. We can find any information using "business-id" or "user-id"
+Firstly, I need to connect to grafana,
+I need to go into the web browser to `localhost:3000` and use `Username: admin` and `Password: pw12345`.
 
-Detail of the Streamlit application : [Streamlit](Streamlit/app/streamlitapp.py)
+Next, I need to connect grafana to my influxDB database.
+To do this, I need to go to `Connections` then `Data sources`, choose InfluxDB as the database,
+then choose `Query Language: Flux`, `URL: http://influxdb:8086`.
+In `Basic Auth Details` I need to provide the InfluxDB user and password: `User: my-user`, `Password: my-password`.
+
+
+Finally, I need to provide the information required to connect to the InfluxDB Bucket:
+`Organisation: my-org`, `Token: <xxxxxxxxxx>`, `Default Bucket: gas-quality`
+
+
+![grafana-config](/photo/grafana-config.png)
+
+
+Once I've established a connection between grafana and influxdb,
+all I need to do is choose the date and create a graph using the **Flux** query language.
+For example, to plot the **CO graph**, I need to use :
+
+`|> filter(fn : (r) => r["_field"] == "CO (ppm)")` 
+
+
+![voltage](/photo/voltage.png)
+
+
+I also used a drop-down menu
+to choose which resistors to display individually instead of putting all fourteen resistors in the same graph.
+
+To do this, in the dashboard menu, I went to `Settings` then `Variables`,
+chose the name `Resistors` as `Custom` and for the value I put the column name `R1 (MOhm), ..., R14 (MOhm)` as follows:
+
+
+![variable](/photo/variable.png)
+
+
+To use this variable in my Flux query, I need to use 
+`|> filter(fn : (r) => r["_field"] == "${Resistances}")` as follows: 
+
+
+![use-variable](/photo/use-variable.png)
+
+
+Here's what the end result of the dashboard looks like:
+
+![grafana-result](/photo/grafana-result.png)
 
 # Demo
 

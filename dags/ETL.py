@@ -10,7 +10,7 @@ from airflow.operators.python_operator import BranchPythonOperator
 import re
 
 
-def files_names(**context):
+def files_names():
     fs_conn = BaseHook.get_connection('fs_default')
     directory = Path(fs_conn.extra_dejson['path'])
     files = directory.glob('*.csv')
@@ -19,8 +19,8 @@ def files_names(**context):
     return files_list
 
 
-def check_if_file_exists(file_path, **context):
-    # Extract file name from file path
+def check_if_file_exists(file_path):
+    # Extract file name from a file path
     file_name = Path(file_path).name
 
     # Connect to PostgreSQL database
@@ -32,7 +32,7 @@ def check_if_file_exists(file_path, **context):
         database="GasData"
     )
 
-    # Check if file name already exists in table
+    # Check if the file name already exists in table
     cur = conn.cursor()
     cur.execute("""SELECT COUNT(*) FROM gas_name WHERE file_name = %s""", (file_name,))
     count = cur.fetchone()[0]

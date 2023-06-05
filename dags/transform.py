@@ -10,8 +10,6 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 
 def process_file(csv_file):
     print("Processing file:", csv_file)
-    # stem : returns the file name of csv_file without its extension
-    # file_name = csv_file.stem
     file_name = csv_file.split(".")[0]
     dask_df = df1.read_csv(str(csv_file))
     dask_df = dask_df.persist()
