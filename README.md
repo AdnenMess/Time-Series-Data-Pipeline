@@ -11,7 +11,7 @@ the gas (CO) concentration based on the sensor responses.
 >
 > To achieve this, the project uses Airflow, InfluxDB and Grafana as the main tools and technologies. 
 Airflow is used to automate the extraction, transformation and loading **(ETL)** of the CSV files containing the sensor data. 
-InfluxDB is used to store the processed data as time series in an efficient way. 
+InfluxDB is used to store the processed time series data in an efficient way. 
 Grafana is used to visualize the data and create interactive dashboards that show the sensor signals.
 >
 > The project demonstrates how to handle, process and visualize dynamic data using various tools and technologies. 
@@ -22,17 +22,16 @@ It also shows how to integrate and enrich the data by combining different files 
 
 - [The Data Set](#the-data-set)
 - [Used Tools](#used-tools)
-  - [Connect](#connect)
-  - [Buffer](#buffer)
-  - [Processing](#processing)
-  - [Storage](#storage)
-  - [Connect to Storage](#connect-to-storage)
+  - [Extract](#extract)
+  - [Transform](#transform)
+  - [Load](#load)
+  - [Automation](#automation)
   - [Visualization](#visualization)
 - [Setup](#setup)
 - [Pipelines](#pipelines)
-  - [Data Preprocessing](#data-preprocessing)
-  - [Data Stream](#data-stream)
-  - [Processing Data Stream](#processing-data-stream)
+  - [Load Data](#load-data)
+  - [Data Processing](#data-processing)
+  - [Storing data in influxDB](#storing-data-in-influxdb)
   - [Visualizations](#visualizations)
 - [Demo](#demo)
 - [Conclusion](#conclusion)
@@ -46,7 +45,7 @@ Each file includes the acquired time series, presented in 20 columns: Time (s), 
 Resistance values R1-R7 correspond to FIGARO TGS 3870 A-04 sensors, whereas R8-R14 correspond to FIS SB-500-12 units.
 The time series are sampled at 3.5 Hz.
 - Data Source : https://archive.ics.uci.edu/ml/datasets/Gas+sensor+array+temperature+modulation
-- Here an overview of the dataset - 10 Columns:
+- Here is an overview of the dataset - 10 Columns:
 ![dataset](/photo/dataset.png)
 
 
@@ -97,16 +96,17 @@ In Extra, enter `{"path": "/usr/local/airflow/data_input"}`. Click the Save butt
 
 ![fs_default](/photo/fs_default.png)
 
-- Finally, I need to configure InfluxDB to store the dataset. To do that : 
+- Finally, you need to configure InfluxDB to store the dataset. To do that : 
   1. Go to `localhost:8086` on the web browser and connect to InfluxDB using this configuration:`Username: my-user`, `Password: my-password`
-  2. I need to create a `Bucket` called "gas quality"
-  3. I need to generate an `API token` to use in my **transform** code
+  2. Create a `Bucket` called "**gas-quality**"
+  3. Generate an `API token` to use in my **transform.py** code
 
 ![Bucket](/photo/Bucket.png)
 
 ![token](/photo/token.png)
 
 # Pipelines
+
 
 ![pipline](/photo/pipeline.jpg)
 
@@ -140,7 +140,9 @@ As you can see,when the name of the csv file already exists in the metadata base
 
 As you can see, when the name of the csv file does not exist in the metadata base, the file will be processed.
 
-## Data Preprocessing
+Detail of loading data: [loading](dags/ETL.py)
+
+## Data Processing
 
 Initially, all datasets were given a 25-hour recording over a period of 13 working days.
 It is not clear from the documentation why this is a 25-hour record rather than a 24-hour record.
@@ -148,8 +150,8 @@ It is not clear from the documentation why this is a 25-hour record rather than 
 Therefore, to simplify the process, I will only take 24 hours per day (24 hours = 86400 seconds),
 as the data is recorded in seconds.
 
-The main goal of the process is to transform the time in the dataset,
-which is originally in seconds, into the timestamp format used by influxdb `YYYY-MM-DDTHH:MM:SS.sssZ`. 
+The main goal of the process is to transform the time in the dataset
+which is originally in seconds into the timestamp format used by influxdb `YYYY-MM-DDTHH:MM:SS.sssZ`. 
 
 To do this, I extracted the day of recording from the name of the csv files (example:
 if the name of the csv file is 20161007_210049.csv, the day of recording is 10/07/2016).
@@ -157,7 +159,22 @@ I concatenated the date with the time in the dataset after converting the second
 The result is a timestamp 'YYYY-MM-DD HH:MM: SS.sss'
 and the last step was to convert this timestamp into the format used by influxdb `YYY-MM-DDTHH:MM:SS.sssZ`.
 
+I also chose
+to work with the **Dask** library rather than Pandas
+because Dask uses parallel processing to handle larger-than-memory datasets
+and is better suited for distributed computing on larger datasets
+
+Detail of the processing: [Processing](dags/transform.py)
+
 ## Storing data in influxDB
+
+Originally, all the datasets were in the form of time series.
+So I chose to store the data in InfluxDB rather than PostgreSQL
+because InfluxDB is specifically designed to handle time series.
+It uses a custom storage engine that is optimized for high ingest rates and fast query performance on time series data.
+PostgreSQL, on the other hand,
+is a general-purpose relational database
+that does not necessarily offer the same level of performance optimization for time-series workloads.
 
 The big challenge with airflow is sending data between tasks.
 I have avoided
@@ -178,6 +195,8 @@ as influxDB has received all the data from this parquet file.
 Finally, I need to go into InfluxDB, Buckets and make sure the data is there.
 
 ![influxdb-result](/photo/Influxdb-result.png)
+
+Detail of storing data: [Storing](dags/transform.py)
 
 ## Visualizations
 
@@ -232,19 +251,35 @@ Here's what the end result of the dashboard looks like:
 
 # Demo
 
-+ Here is an example of what the final application will look like. We can get the same information by 
-searching for "business-id" or "user-id" because the data is merged
++ Here's an example of how the ETL pipeline works. 
+I have a csv file **20161005_140846** which has already been processed,
+  and I add the following csv files to the mounted folder: **20161006_182224.csv** and **20161007_210049.csv**.
+The two new csv files will be processed, but the processing of the oldest csv file will be skipped
 
-![demo](images/streamlit.png)
+
+![ETL](/photo/ETL.gif)
+
 
 # Conclusion
-Overall, I found this to be a very interesting project to explore. The key here is to merge json files into a single
-NoSQL database. I have done with this project using many services, from ingestion to visualization. We can improve 
-this project by adding authentication for the API for more security, or we can choose to work with a data frame that 
-is stored in OFF HEAP, in MEMORY ONLY or in MEMORY AND DISK instead of reading the data from mongodb. The challenge 
-for me would be the documentation, it is quite difficult to document your project in the best way possible so that 
-other people can easily find their way around. However, for me, this project is a kick-start to understand more deeply
-how data engineering works
+
+I carried out this project using a number of services, from ingestion to visualization.
+
+The most difficult part was mounting the folder containing the csv files in the docker-compose
+and then using it in the connection path of the airflow user interface,
+to finally have the ability to work with multiple files in the extraction task. 
+
+In addition, I chose to work with branch python operator
+and to save the names of the csv files in a table in the metadata base
+in order to avoid reprocessing any csv file that had already been processed and its data sent to influxdb.
+
+Very importantly,
+make sure to allocate at least **6 GB** of RAM to Docker Desktop
+in case of working with multiple files at the same time.
+Otherwise, to be on the safe side, work with only one file, or you faced with
+`Task received SIGTERM signal and terminated` (The **SIGTERM** related error,
+it usually indicates that the task or process is exceeding the available memory resources) 
+
+Overall, I found this to be an exciting project to explore
 
 # Follow Me On
 + Github: [@AdnenMess](https://github.com/AdnenMess)
