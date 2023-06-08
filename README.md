@@ -116,6 +116,7 @@ The upcoming posts will consist of writing about:
 + Storing data in the influxdb time series database
 + Visualisation of all gas sensors using a Grafana dashboard
 
+
 ## Load Data
 
 I chose to design the pipeline as follows:
